@@ -15,7 +15,7 @@ import Unauthorized from "../pages/Unauthorized";
 import RoleProtected from "./RoleProtected";
 
 const Routers = () => {
-  const { isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
 
   return (
     <Routes>
@@ -36,7 +36,14 @@ const Routers = () => {
       <Route
         path="/login"
         element={
-          isAuthenticated ? <Navigate to="/dashboard" replace /> : <Login />
+          isAuthenticated ? (
+            <Navigate
+              to={user?.role === "admin" ? "/dashboard" : "/"}
+              replace
+            />
+          ) : (
+            <Login />
+          )
         }
       />
       <Route path="/register" element={<Register />} />
@@ -44,7 +51,7 @@ const Routers = () => {
       {/* Protected Routes with Layout */}
       <Route
         element={
-          <RoleProtected requiredRoles={["admin", "user"]}>
+          <RoleProtected requiredRoles={["admin"]}>
             <MainLayout />
           </RoleProtected>
         }
@@ -64,7 +71,7 @@ const Routers = () => {
         <Route
           path="/profile"
           element={
-            <RoleProtected requiredRoles={["admin", "user"]}>
+            <RoleProtected requiredRoles={["admin"]}>
               <div>Profile Page Coming Soon</div>
             </RoleProtected>
           }

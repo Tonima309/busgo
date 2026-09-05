@@ -1,19 +1,41 @@
 import { useState } from "react";
+import toast from "react-hot-toast";
+import { useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
+import { logoutSuccess, useLogoutMutation } from "../features/auth/authSlice";
+import { useGetBusesQuery } from "../features/transport/transportSlice";
+import useAuth from "../hooks/useAuth";
 
 const SearchBuses = () => {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
+  const { isAuthenticated } = useAuth();
+  const [logoutApi] = useLogoutMutation();
+  const handleLogout = async () => {
+    try {
+      await logoutApi().unwrap();
+    } finally {
+      dispatch(logoutSuccess());
+      navigate("/");
+      toast.success("Logged out successfully.");
+    }
+  };
   const [fromLocation, setFromLocation] = useState("Dhaka");
   const [toLocation, setToLocation] = useState("Chittagong");
-  const [date, setDate] = useState("2026-08-31");
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [departureFilter, setDepartureFilter] = useState("all");
   const [busTypeFilter, setBusTypeFilter] = useState("all");
   const [maxPrice, setMaxPrice] = useState(3000);
   const [showSeatSelection, setShowSeatSelection] = useState(false);
   const [selectedBus, setSelectedBus] = useState(null);
   const [selectedSeats, setSelectedSeats] = useState([]);
+  const {
+    data: busesResponse,
+    isLoading,
+    isError,
+  } = useGetBusesQuery({ date });
 
-  const buses = [
+  const fallbackBuses = [
     {
       id: 1,
       name: "Shyamoli Paribahan",
@@ -94,21 +116,53 @@ const SearchBuses = () => {
     },
   ];
 
+  const allBuses = (busesResponse?.data || []).flatMap((bus) =>
+    (bus.routes || []).map((route) => ({
+      id: `${bus.id}-${route.id}`,
+      busId: bus.id,
+      routeId: route.id,
+      name: bus.name,
+      type: bus.type,
+      rating: 4.5,
+      departure: route.departure.slice(0, 5),
+      arrival: route.arrival.slice(0, 5),
+      duration: "5h 30m",
+      totalSeats: bus.total_seats,
+      bookedSeats: route.booked_seats || 0,
+      bookedSeatIds: route.booked_seat_ids || [],
+      availableSeats:
+        route.available_seats ??
+        Math.max(bus.total_seats - (route.booked_seats || 0), 0),
+      price: route.fare,
+      route: `${route.from} → ${route.to}`,
+      from: route.from,
+      to: route.to,
+      date,
+    })),
+  );
+  const buses = allBuses.filter(
+    (bus) => bus.from === fromLocation && bus.to === toLocation,
+  );
+  const displayedBuses = buses.length
+    ? buses
+    : isError
+      ? fallbackBuses.map((bus) => ({
+          ...bus,
+          totalSeats: bus.seats,
+          availableSeats: bus.seats,
+          bookedSeats: 0,
+          bookedSeatIds: [],
+        }))
+      : buses;
+  const availableFromLocations = [...new Set(allBuses.map((bus) => bus.from))];
+  const availableToLocations = [
+    ...new Set(
+      allBuses.filter((bus) => bus.from === fromLocation).map((bus) => bus.to),
+    ),
+  ];
   const seatRows = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K"];
   const seatColumns = [1, 2, 3, 4, 5];
-  const bookedSeats = [
-    "A4",
-    "B2",
-    "C5",
-    "D3",
-    "E1",
-    "F4",
-    "G5",
-    "H2",
-    "I3",
-    "J1",
-    "K4",
-  ];
+  const bookedSeats = selectedBus?.bookedSeatIds || [];
 
   const toggleSeat = (seatId) => {
     if (bookedSeats.includes(seatId)) return;
@@ -168,12 +222,14 @@ const SearchBuses = () => {
               </button>
             </nav>
             <div className="hidden md:flex items-center gap-3 text-sm">
-              <button className="text-slate-200 hover:text-white">
-                Admin Panel
-              </button>
-              <button className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg font-semibold transition">
-                Logout
-              </button>
+              {isAuthenticated && (
+                <button
+                  onClick={handleLogout}
+                  className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg font-semibold transition"
+                >
+                  Logout
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -402,12 +458,29 @@ const SearchBuses = () => {
             </button>
           </nav>
           <div className="flex items-center gap-3">
-            <button className="border border-orange-500 text-orange-500 hover:bg-orange-500 hover:text-white px-6 py-2 rounded-lg font-semibold transition">
-              Register
-            </button>
-            <button className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-lg font-semibold transition">
-              Login
-            </button>
+            {isAuthenticated ? (
+              <button
+                onClick={handleLogout}
+                className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-lg font-semibold transition"
+              >
+                Logout
+              </button>
+            ) : (
+              <>
+                <button
+                  onClick={() => navigate("/register")}
+                  className="border border-orange-500 text-orange-500 hover:bg-orange-500 hover:text-white px-6 py-2 rounded-lg font-semibold transition"
+                >
+                  Register
+                </button>
+                <button
+                  onClick={() => navigate("/login")}
+                  className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-lg font-semibold transition"
+                >
+                  Login
+                </button>
+              </>
+            )}
           </div>
         </div>
       </header>
@@ -425,9 +498,11 @@ const SearchBuses = () => {
                   onChange={(e) => setFromLocation(e.target.value)}
                   className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-orange-500"
                 >
-                  <option value="Dhaka">Dhaka</option>
-                  <option value="Chittagong">Chittagong</option>
-                  <option value="Khulna">Khulna</option>
+                  {availableFromLocations.map((location) => (
+                    <option key={location} value={location}>
+                      {location}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>
@@ -439,9 +514,11 @@ const SearchBuses = () => {
                   onChange={(e) => setToLocation(e.target.value)}
                   className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-orange-500"
                 >
-                  <option value="Chittagong">Chittagong</option>
-                  <option value="Sylhet">Sylhet</option>
-                  <option value="Cox's Bazar">Cox's Bazar</option>
+                  {availableToLocations.map((location) => (
+                    <option key={location} value={location}>
+                      {location}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>
@@ -613,78 +690,101 @@ const SearchBuses = () => {
                   {fromLocation} → {toLocation}
                 </span>
                 <br />
-                {date} · 6 buses found
+                {date} ·{" "}
+                {isLoading
+                  ? "Loading buses..."
+                  : `${displayedBuses.length} buses found`}
               </p>
             </div>
 
             <div className="space-y-4">
-              {buses.map((bus) => (
-                <div
-                  key={bus.id}
-                  className="bg-white border border-slate-200 rounded-lg p-6 hover:shadow-lg transition"
-                >
-                  <div className="flex items-start justify-between gap-6">
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-slate-900 text-lg">
-                        {bus.name}
-                      </h3>
-                      <div className="flex items-center gap-3 mt-1">
-                        <span className="text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded">
-                          {bus.type}
-                        </span>
-                        <span className="text-xs text-slate-600">
-                          ★ {bus.rating} rating
-                        </span>
-                        <span className="text-xs text-slate-600">
-                          🚐 Tracking
-                        </span>
-                        <span className="text-xs text-slate-600">
-                          📍 Instant e-ticket
-                        </span>
+              {isError ? (
+                <p className="text-sm text-red-600">Unable to load buses.</p>
+              ) : (
+                displayedBuses.map((bus) => (
+                  <div
+                    key={bus.id}
+                    className="bg-white border border-slate-200 rounded-lg p-6 hover:shadow-lg transition"
+                  >
+                    <div className="flex items-start justify-between gap-6">
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-slate-900 text-lg">
+                          {bus.name}
+                        </h3>
+                        <div className="flex items-center gap-3 mt-1">
+                          <span className="text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded">
+                            {bus.type}
+                          </span>
+                          <span className="text-xs text-slate-600">
+                            ★ {bus.rating} rating
+                          </span>
+                          <span className="text-xs text-slate-600">
+                            🚐 Tracking
+                          </span>
+                          <span className="text-xs text-slate-600">
+                            📍 Instant e-ticket
+                          </span>
+                        </div>
                       </div>
+
+                      <div className="text-right">
+                        <div className="text-xl font-bold text-slate-900">
+                          {bus.departure}
+                        </div>
+                        <div className="text-xs text-slate-600">5h 30m</div>
+                      </div>
+
+                      <div className="text-2xl text-slate-400">→</div>
+
+                      <div className="text-right">
+                        <div className="text-xl font-bold text-slate-900">
+                          {bus.arrival}
+                        </div>
+                        <div className="text-xs text-slate-600">
+                          {bus.duration}
+                        </div>
+                      </div>
+
+                      <div className="text-right">
+                        <div className="text-left text-xs text-slate-600 space-y-1">
+                          <div>
+                            <span className="font-semibold text-slate-900">
+                              Total Seats:
+                            </span>{" "}
+                            {bus.totalSeats}
+                          </div>
+                          <div>
+                            <span className="font-semibold text-emerald-700">
+                              Available Seats:
+                            </span>{" "}
+                            {bus.availableSeats}
+                          </div>
+                          <div>
+                            <span className="font-semibold text-red-600">
+                              Booked Seats:
+                            </span>{" "}
+                            {bus.bookedSeats}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="text-right">
+                        <div className="text-2xl font-bold text-orange-500">
+                          {bus.price}
+                        </div>
+                        <div className="text-xs text-slate-600">per seat</div>
+                      </div>
+
+                      <button
+                        onClick={() => handleViewSeats(bus)}
+                        className="bg-blue-500 hover:bg-blue-600 text-white font-semibold px-6 py-2 rounded-lg transition whitespace-nowrap"
+                      >
+                        View Seats
+                      </button>
                     </div>
-
-                    <div className="text-right">
-                      <div className="text-xl font-bold text-slate-900">
-                        {bus.departure}
-                      </div>
-                      <div className="text-xs text-slate-600">5h 30m</div>
-                    </div>
-
-                    <div className="text-2xl text-slate-400">→</div>
-
-                    <div className="text-right">
-                      <div className="text-xl font-bold text-slate-900">
-                        {bus.arrival}
-                      </div>
-                      <div className="text-xs text-slate-600">
-                        {bus.duration}
-                      </div>
-                    </div>
-
-                    <div className="text-right">
-                      <div className="font-semibold text-slate-900">
-                        {bus.seats} seats
-                      </div>
-                      <div className="text-xs text-orange-500">available</div>
-                    </div>
-
-                    <div className="text-right">
-                      <div className="text-2xl font-bold text-orange-500">
-                        {bus.price}
-                      </div>
-                      <div className="text-xs text-slate-600">per seat</div>
-                    </div>
-
-                    <button
-                      onClick={() => handleViewSeats(bus)}
-                      className="bg-blue-500 hover:bg-blue-600 text-white font-semibold px-6 py-2 rounded-lg transition whitespace-nowrap"
-                    >
-                      View Seats
-                    </button>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
         </div>

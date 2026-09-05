@@ -1,5 +1,8 @@
 import { useState } from "react";
+import { toast } from "react-hot-toast";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useCreateBookingMutation } from "../features/transport/transportSlice";
+import useAuth from "../hooks/useAuth";
 
 const BookingDetails = () => {
   const navigate = useNavigate();
@@ -22,6 +25,8 @@ const BookingDetails = () => {
     email: "",
   });
   const [phoneError, setPhoneError] = useState("");
+  const [createBooking, { isLoading }] = useCreateBookingMutation();
+  const { isAuthenticated } = useAuth();
 
   const updatePassenger = (field, value) => {
     setPassenger((previous) => ({ ...previous, [field]: value }));
@@ -43,17 +48,31 @@ const BookingDetails = () => {
     return true;
   };
 
-  const handleConfirmBooking = () => {
+  const handleConfirmBooking = async () => {
+    if (!isAuthenticated) {
+      navigate("/login");
+      return;
+    }
     if (!validatePhone()) return;
 
-    navigate("/booking-confirmation", {
-      state: {
-        bus,
+    try {
+      const response = await createBooking({
+        bus_id: bus.busId,
+        bus_route_id: bus.routeId,
+        journey_date: bus.date,
         seats,
-        passenger,
-        bookingId: `BG-${Math.floor(10000 + Math.random() * 90000)}`,
-      },
-    });
+        passenger_name: passenger.name,
+        passenger_phone: passenger.phone,
+        passenger_email: passenger.email,
+      }).unwrap();
+
+      toast.success("Booking confirmed!");
+      navigate("/booking-confirmation", {
+        state: { bus, seats, passenger, bookingId: response.data.booking_code },
+      });
+    } catch (error) {
+      toast.error(error?.data?.message || "Unable to create booking.");
+    }
   };
 
   return (
@@ -223,7 +242,7 @@ const BookingDetails = () => {
                 onClick={handleConfirmBooking}
                 className="mt-5 w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 rounded-lg transition"
               >
-                Confirm Booking
+                {isLoading ? "Booking..." : "Confirm Booking"}
               </button>
               <button
                 onClick={() => navigate("/search")}

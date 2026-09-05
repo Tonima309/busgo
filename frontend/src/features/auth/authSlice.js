@@ -6,14 +6,14 @@ export const authApiSlice = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
     register: builder.mutation({
       query: (data) => ({
-        url: "/register",
+        url: "/auth/register",
         method: "POST",
         body: data,
       }),
     }),
     login: builder.mutation({
       query: (credentials) => ({
-        url: "/login",
+        url: "/auth/login",
         method: "POST",
         body: credentials,
       }),
@@ -21,13 +21,13 @@ export const authApiSlice = apiSlice.injectEndpoints({
     }),
     logout: builder.mutation({
       query: () => ({
-        url: "/logout",
+        url: "/auth/logout",
         method: "POST",
       }),
       invalidatesTags: ["User"],
     }),
     getProfile: builder.query({
-      query: () => "/profile",
+      query: () => "/auth/me",
       providesTags: ["User"],
     }),
   }),
@@ -39,9 +39,13 @@ const getInitialState = () => {
   try {
     const token = localStorage.getItem("token");
     const user = localStorage.getItem("user");
+    const parsedUser = user ? JSON.parse(user) : null;
+    const normalizedUser = parsedUser
+      ? { ...parsedUser, role: parsedUser.role || "user" }
+      : null;
 
     return {
-      user: user ? JSON.parse(user) : null,
+      user: normalizedUser,
       token: token || null,
       isAuthenticated: !!token,
     };
@@ -63,13 +67,13 @@ const authSlice = createSlice({
   reducers: {
     loginSuccess: (state, action) => {
       const { user, token } = action.payload;
-      state.user = user;
+      state.user = { ...user, role: user.role || "user" };
       state.token = token;
       state.isAuthenticated = true;
 
       // Save to localStorage only here - centralized location
       localStorage.setItem("token", token);
-      localStorage.setItem("user", JSON.stringify(user));
+      localStorage.setItem("user", JSON.stringify(state.user));
     },
     logoutSuccess: (state) => {
       state.user = null;
@@ -85,10 +89,11 @@ const authSlice = createSlice({
       try {
         const token = localStorage.getItem("token");
         const user = localStorage.getItem("user");
+        const parsedUser = user ? JSON.parse(user) : null;
 
         if (token && user) {
           state.token = token;
-          state.user = JSON.parse(user);
+          state.user = { ...parsedUser, role: parsedUser.role || "user" };
           state.isAuthenticated = true;
         }
       } catch {

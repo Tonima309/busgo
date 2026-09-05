@@ -6,7 +6,7 @@ export const extendedUsersApi = apiSlice.injectEndpoints({
       query: (arg) => {
         // Handle both object and direct search term
         const params = typeof arg === "object" ? arg : { search: arg };
-        let url = `/user?page=${params.page || 1}`;
+        let url = `/users?page=${params.page || 1}`;
         if (params.search) {
           url += `&search=${encodeURIComponent(params.search)}`;
         }
@@ -36,7 +36,7 @@ export const extendedUsersApi = apiSlice.injectEndpoints({
     }),
     addUser: builder.mutation({
       query: (body) => ({
-        url: "/register",
+        url: "/users",
         method: "POST",
         body,
       }),
@@ -44,8 +44,8 @@ export const extendedUsersApi = apiSlice.injectEndpoints({
     }),
     updateUser: builder.mutation({
       query: ({ id, formData }) => ({
-        url: `/user/update/${id}`,
-        method: "POST",
+        url: `/users/${id}`,
+        method: "PUT",
         body: formData,
       }),
       invalidatesTags: (result, error, { id }) => [
@@ -55,7 +55,7 @@ export const extendedUsersApi = apiSlice.injectEndpoints({
     }),
     deleteUser: builder.mutation({
       query: (id) => ({
-        url: `/user/${id}`,
+        url: `/users/${id}`,
         method: "DELETE",
       }),
       invalidatesTags: (result, error, id) => [

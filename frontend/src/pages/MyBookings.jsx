@@ -1,12 +1,69 @@
 import { useState } from "react";
+import toast from "react-hot-toast";
+import { useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
+import { logoutSuccess, useLogoutMutation } from "../features/auth/authSlice";
+import {
+  useCancelBookingMutation,
+  useGetBookingsQuery,
+} from "../features/transport/transportSlice";
+import useAuth from "../hooks/useAuth";
 
 const MyBookings = () => {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const [activeTab, setActiveTab] = useState("all");
   const [selectedBooking, setSelectedBooking] = useState(null);
+  const { isAuthenticated } = useAuth();
+  const [logoutApi] = useLogoutMutation();
+  const [cancelBooking] = useCancelBookingMutation();
+  const handleLogout = async () => {
+    try {
+      await logoutApi().unwrap();
+    } finally {
+      dispatch(logoutSuccess());
+      navigate("/");
+      toast.success("Logged out successfully.");
+    }
+  };
+  const {
+    data: bookingsResponse,
+    isLoading,
+    error,
+  } = useGetBookingsQuery(undefined, { skip: !isAuthenticated });
 
-  const bookings = [
+  const bookings = (bookingsResponse?.data || []).map((booking) => ({
+    databaseId: booking.id,
+    id: booking.booking_code,
+    busName: booking.bus?.name || "Bus",
+    route: booking.route
+      ? `${booking.route.from} → ${booking.route.to}`
+      : "Route",
+    date: booking.journey_date,
+    seats: booking.seats || [],
+    amount: `৳${booking.total_amount}`,
+    status:
+      booking.status === "completed"
+        ? "Completed"
+        : booking.status === "cancelled"
+          ? "Cancelled"
+          : "Upcoming",
+  }));
+
+  const handleCancelBooking = async (booking) => {
+    if (!window.confirm("Cancel this ticket?")) return;
+
+    try {
+      await cancelBooking(booking.databaseId).unwrap();
+      toast.success("Ticket cancelled successfully.");
+    } catch (cancelError) {
+      toast.error(
+        cancelError?.data?.message || "Unable to cancel this ticket.",
+      );
+    }
+  };
+  /*
+  const fallbackBookings = [
     {
       id: "BG-2024-001",
       busName: "Shyamoli Paribahan",
@@ -43,7 +100,7 @@ const MyBookings = () => {
       amount: "৳380",
       status: "Upcoming",
     },
-  ];
+  ]; */
 
   const filteredBookings = bookings.filter((booking) => {
     if (activeTab === "all") return true;
@@ -83,18 +140,46 @@ const MyBookings = () => {
             </a>
           </nav>
           <div className="flex items-center gap-3">
-            <button className="border border-orange-500 text-orange-500 hover:bg-orange-500 hover:text-white px-6 py-2 rounded-lg font-semibold transition">
-              Register
-            </button>
-            <button className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-lg font-semibold transition">
-              Login
-            </button>
+            {isAuthenticated ? (
+              <button
+                onClick={handleLogout}
+                className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-lg font-semibold transition"
+              >
+                Logout
+              </button>
+            ) : (
+              <>
+                <button
+                  onClick={() => navigate("/register")}
+                  className="border border-orange-500 text-orange-500 hover:bg-orange-500 hover:text-white px-6 py-2 rounded-lg font-semibold transition"
+                >
+                  Register
+                </button>
+                <button
+                  onClick={() => navigate("/login")}
+                  className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-lg font-semibold transition"
+                >
+                  Login
+                </button>
+              </>
+            )}
           </div>
         </div>
       </header>
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 py-12">
+        {error?.status === 401 && (
+          <div className="mb-6 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-800">
+            Your session expired. Please sign in again to view your bookings.
+            <button
+              onClick={() => navigate("/login")}
+              className="ml-2 font-semibold underline"
+            >
+              Sign in
+            </button>
+          </div>
+        )}
         {/* Header Section */}
         <div className="flex items-center justify-between mb-8">
           <div>
@@ -170,12 +255,21 @@ const MyBookings = () => {
                     Status
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">
-                    Action
+                    Actions
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {filteredBookings.length > 0 ? (
+                {isLoading ? (
+                  <tr>
+                    <td
+                      colSpan="7"
+                      className="px-6 py-12 text-center text-slate-600"
+                    >
+                      Loading bookings...
+                    </td>
+                  </tr>
+                ) : filteredBookings.length > 0 ? (
                   filteredBookings.map((booking, idx) => (
                     <tr
                       key={idx}
@@ -217,19 +311,31 @@ const MyBookings = () => {
                           className={`text-xs font-semibold px-3 py-1 rounded ${
                             booking.status === "Completed"
                               ? "bg-green-100 text-green-700"
-                              : "bg-blue-100 text-blue-700"
+                              : booking.status === "Cancelled"
+                                ? "bg-red-100 text-red-700"
+                                : "bg-blue-100 text-blue-700"
                           }`}
                         >
                           {booking.status}
                         </span>
                       </td>
                       <td className="px-6 py-4">
-                        <button
-                          onClick={() => setSelectedBooking(booking)}
-                          className="text-blue-500 hover:text-blue-700 font-semibold text-sm transition"
-                        >
-                          View Details
-                        </button>
+                        <div className="flex flex-col items-start gap-2">
+                          <button
+                            onClick={() => setSelectedBooking(booking)}
+                            className="text-blue-500 hover:text-blue-700 font-semibold text-sm transition"
+                          >
+                            View Details
+                          </button>
+                          {booking.status === "Upcoming" && (
+                            <button
+                              onClick={() => handleCancelBooking(booking)}
+                              className="text-red-500 hover:text-red-700 font-semibold text-sm transition"
+                            >
+                              Cancel Ticket
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))

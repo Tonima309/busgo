@@ -30,6 +30,11 @@ This project now includes a starter Laravel API for React apps using token authe
    - `php artisan serve`
 4. Set `CORS_ALLOWED_ORIGINS` in `.env` for your React app URL.
 
+The seeded administrator uses `admin@busgo.com` with password `Admin@12345` by
+default. Override `ADMIN_EMAIL`, `ADMIN_PASSWORD`, and `ADMIN_PHONE` in `.env`
+before running `php artisan db:seed --force` in another environment. All users
+created through registration are passengers and cannot access admin routes.
+
 ### React Usage Example
 
 Set token from login/register and send it in headers:

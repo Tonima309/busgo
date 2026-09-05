@@ -1,10 +1,24 @@
 import { useState } from "react";
+import toast from "react-hot-toast";
+import { useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
+import { logoutSuccess, useLogoutMutation } from "../features/auth/authSlice";
 import useAuth from "../hooks/useAuth";
 
 const Home = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth();
+  const dispatch = useDispatch();
+  const [logoutApi] = useLogoutMutation();
+  const handleLogout = async () => {
+    try {
+      await logoutApi().unwrap();
+    } finally {
+      dispatch(logoutSuccess());
+      navigate("/");
+      toast.success("Logged out successfully.");
+    }
+  };
   const [fromLocation, setFromLocation] = useState("");
   const [toLocation, setToLocation] = useState("");
   const [date, setDate] = useState("");
@@ -83,6 +97,13 @@ const Home = () => {
                 className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-lg font-semibold transition"
               >
                 Admin Panel
+              </button>
+            ) : isAuthenticated ? (
+              <button
+                onClick={handleLogout}
+                className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-lg font-semibold transition"
+              >
+                Logout
               </button>
             ) : (
               <>

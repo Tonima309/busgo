@@ -29,9 +29,11 @@ const Register = () => {
       }
     } catch (err) {
       const errorMessage =
-        err?.data?.message === "Validation failed"
-          ? "User email/phone already exists!"
-          : "Registration failed. Please try again.";
+        err?.data?.errors?.email?.[0] ||
+        err?.data?.errors?.phone?.[0] ||
+        err?.data?.errors?.password?.[0] ||
+        err?.data?.message ||
+        "Registration failed. Please try again.";
       toast.error(errorMessage, { id: toastId });
     }
   };

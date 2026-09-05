@@ -28,13 +28,15 @@ const Login = () => {
             token: response.data?.token,
           }),
         );
-        navigate("/dashboard");
+        navigate(response.data.user.role === "admin" ? "/dashboard" : "/");
       } else {
         toast.error("Invalid response from server.", { id: toastId });
       }
     } catch (err) {
       const errorMessage =
-        err?.data?.message || "Login failed. Please try again.";
+        err?.data?.errors?.email?.[0] ||
+        err?.data?.message ||
+        "Login failed. Please try again.";
       toast.error(errorMessage, { id: toastId });
     }
   };

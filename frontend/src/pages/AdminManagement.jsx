@@ -5,68 +5,33 @@ import {
   LogOut,
   MapPinned,
 } from "lucide-react";
+import { useState } from "react";
+import { toast } from "react-hot-toast";
 import { useLocation, useNavigate } from "react-router-dom";
-
-const buses = [
-  ["Shyamoli Paribahan", "DH-3421", "AC", "40"],
-  ["Hanif Enterprise", "DH-2218", "Non-AC", "52"],
-  ["Green Line", "DH-5543", "AC Sleeper", "28"],
-  ["Soudia Eagle", "DH-4432", "AC", "40"],
-  ["TR Travels", "CT-3122", "Non-AC", "52"],
-];
-const routes = [
-  ["Dhaka", "Chittagong", "07:00", "12:30", "৳650"],
-  ["Dhaka", "Sylhet", "08:00", "12:45", "৳480"],
-  ["Dhaka", "Cox's Bazar", "22:00", "06:00", "৳900"],
-  ["Dhaka", "Rajshahi", "09:00", "14:00", "৳420"],
-  ["Chittagong", "Cox's Bazar", "10:00", "13:30", "৳320"],
-];
-const bookings = [
-  [
-    "BG-2024-001",
-    "Rahim Uddin",
-    "Shyamoli Paribahan",
-    "Dhaka → Chittagong",
-    "2026-08-15",
-    "A3, A4",
-    "৳1300",
-    "Completed",
-  ],
-  [
-    "BG-2024-002",
-    "Karim Ahmed",
-    "Green Line",
-    "Dhaka → Cox's Bazar",
-    "2026-09-05",
-    "B2",
-    "৳900",
-    "Upcoming",
-  ],
-  [
-    "BG-2024-003",
-    "Sadia Islam",
-    "Hanif Enterprise",
-    "Dhaka → Sylhet",
-    "2026-07-20",
-    "C5, C6",
-    "৳840",
-    "Completed",
-  ],
-  [
-    "BG-2024-004",
-    "Nasir Hossain",
-    "TR Travels",
-    "Chittagong → Cox's Bazar",
-    "2026-09-12",
-    "D1",
-    "৳380",
-    "Upcoming",
-  ],
-];
+import {
+  useCreateBusMutation,
+  useCreateRouteMutation,
+  useDeleteBusMutation,
+  useDeleteRouteMutation,
+  useGetBookingsQuery,
+  useGetBusesQuery,
+  useUpdateBusMutation,
+  useUpdateRouteMutation,
+} from "../features/transport/transportSlice";
 
 const AdminManagement = () => {
   const navigate = useNavigate();
   const { pathname } = useLocation();
+  const { data: busResponse } = useGetBusesQuery();
+  const { data: bookingResponse } = useGetBookingsQuery();
+  const [createBus] = useCreateBusMutation();
+  const [updateBus] = useUpdateBusMutation();
+  const [deleteBus] = useDeleteBusMutation();
+  const [createRoute] = useCreateRouteMutation();
+  const [updateRoute] = useUpdateRouteMutation();
+  const [deleteRoute] = useDeleteRouteMutation();
+  const [editing, setEditing] = useState(null);
+  const [form, setForm] = useState({});
   const page = pathname.includes("buses")
     ? "buses"
     : pathname.includes("routes")
@@ -75,20 +40,89 @@ const AdminManagement = () => {
   const config = {
     buses: {
       title: "Manage Buses",
-      subtitle: "5 buses registered",
+      subtitle: "Live bus records",
       action: "+ Add Bus",
     },
     routes: {
       title: "Manage Routes",
-      subtitle: "5 routes active",
+      subtitle: "Live route records",
       action: "+ Add Route",
     },
     bookings: {
       title: "Manage Bookings",
-      subtitle: "4 bookings shown",
+      subtitle: "Live booking records",
       action: "",
     },
   }[page];
+
+  const liveBuses = busResponse?.data || [];
+  const liveRoutes = (busResponse?.data || []).flatMap((bus) =>
+    (bus.routes || []).map((route) => ({ ...route, bus })),
+  );
+  const liveBookings = bookingResponse?.data || [];
+
+  const openForm = (type, item = null) => {
+    setEditing({ type, id: item?.id });
+    setForm(
+      type === "bus"
+        ? {
+            name: item?.name || "",
+            number: item?.number || "",
+            type: item?.type || "AC",
+            total_seats: item?.total_seats || 40,
+            route_from: item?.routes?.[0]?.from || "Dhaka",
+            route_to: item?.routes?.[0]?.to || "Chittagong",
+            travel_date: item?.routes?.[0]?.travel_date?.slice(0, 10) || "",
+            departure: item?.routes?.[0]?.departure?.slice(0, 5) || "07:00",
+            arrival: item?.routes?.[0]?.arrival?.slice(0, 5) || "12:00",
+            fare: item?.routes?.[0]?.fare || 650,
+          }
+        : {
+            bus_id: item?.bus_id || busResponse?.data?.[0]?.id || "",
+            from: item?.from || "",
+            to: item?.to || "",
+            departure: item?.departure?.slice(0, 5) || "07:00",
+            arrival: item?.arrival?.slice(0, 5) || "12:00",
+            fare: item?.fare || 0,
+            travel_date: item?.travel_date?.slice(0, 10) || "",
+          },
+    );
+  };
+
+  const submitForm = async (event) => {
+    event.preventDefault();
+    try {
+      if (editing.type === "bus") {
+        await (
+          editing.id
+            ? updateBus({ id: editing.id, bus: form })
+            : createBus(form)
+        ).unwrap();
+      } else {
+        await (
+          editing.id
+            ? updateRoute({ id: editing.id, route: form })
+            : createRoute(form)
+        ).unwrap();
+      }
+      toast.success(
+        `${editing.type === "bus" ? "Bus" : "Route"} saved successfully.`,
+      );
+      setEditing(null);
+    } catch (error) {
+      toast.error(error?.data?.message || "Unable to save changes.");
+    }
+  };
+
+  const removeItem = async (type, id) => {
+    if (!window.confirm(`Delete this ${type}?`)) return;
+    try {
+      await (type === "bus" ? deleteBus(id) : deleteRoute(id)).unwrap();
+      toast.success(`${type[0].toUpperCase() + type.slice(1)} deleted.`);
+    } catch (error) {
+      toast.error(error?.data?.message || "Unable to delete item.");
+    }
+  };
 
   const nav = [
     ["Dashboard", "/dashboard", LayoutDashboard],
@@ -157,7 +191,10 @@ const AdminManagement = () => {
               <p className="text-sm text-slate-500 mt-1">{config.subtitle}</p>
             </div>
             {config.action && (
-              <button className="bg-purple-600 hover:bg-purple-700 text-white rounded-lg px-4 py-2 text-sm font-semibold">
+              <button
+                onClick={() => openForm(page === "buses" ? "bus" : "route")}
+                className="bg-purple-600 hover:bg-purple-700 text-white rounded-lg px-4 py-2 text-sm font-semibold"
+              >
                 {config.action}
               </button>
             )}
@@ -219,13 +256,13 @@ const AdminManagement = () => {
                 </thead>
                 <tbody>
                   {(page === "buses"
-                    ? buses
+                    ? liveBuses
                     : page === "routes"
-                      ? routes
-                      : bookings
+                      ? liveRoutes
+                      : liveBookings
                   ).map((row, index) => (
                     <tr
-                      key={row[0]}
+                      key={row.id || row.booking_code}
                       className="border-t border-slate-100 hover:bg-slate-50"
                     >
                       {page === "buses" ? (
@@ -233,51 +270,79 @@ const AdminManagement = () => {
                           <td className="px-5 py-4 text-slate-400">
                             {index + 1}
                           </td>
-                          <td className="px-5 py-4 font-semibold">{row[0]}</td>
-                          <td className="px-5 py-4">{row[1]}</td>
+                          <td className="px-5 py-4 font-semibold">
+                            {row.name}
+                          </td>
+                          <td className="px-5 py-4">{row.number}</td>
                           <td className="px-5 py-4">
                             <span className="px-2 py-1 rounded-full bg-blue-50 text-blue-600">
-                              {row[2]}
+                              {row.type}
                             </span>
                           </td>
-                          <td className="px-5 py-4">{row[3]}</td>
+                          <td className="px-5 py-4">{row.total_seats}</td>
                           <td className="px-5 py-4 space-x-3">
-                            <button className="text-purple-600">Edit</button>
-                            <button className="text-red-500">Delete</button>
+                            <button
+                              onClick={() => openForm("bus", row)}
+                              className="text-purple-600"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => removeItem("bus", row.id)}
+                              className="text-red-500"
+                            >
+                              Delete
+                            </button>
                           </td>
                         </>
                       ) : page === "routes" ? (
                         <>
-                          {row.map((cell, cellIndex) => (
-                            <td
-                              key={cellIndex}
-                              className={`px-5 py-4 ${cellIndex === 4 ? "font-bold text-purple-600" : ""}`}
-                            >
-                              {cell}
-                            </td>
-                          ))}
+                          <td className="px-5 py-4">{row.from}</td>
+                          <td className="px-5 py-4">{row.to}</td>
+                          <td className="px-5 py-4">
+                            {row.departure.slice(0, 5)}
+                          </td>
+                          <td className="px-5 py-4">
+                            {row.arrival.slice(0, 5)}
+                          </td>
+                          <td className="px-5 py-4 font-bold text-purple-600">
+                            ৳{row.fare}
+                          </td>
                           <td className="px-5 py-4 space-x-3">
-                            <button className="text-purple-600">Edit</button>
-                            <button className="text-red-500">Delete</button>
+                            <button
+                              onClick={() => openForm("route", row)}
+                              className="text-purple-600"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => removeItem("route", row.id)}
+                              className="text-red-500"
+                            >
+                              Delete
+                            </button>
                           </td>
                         </>
                       ) : (
                         <>
-                          {row.map((cell, cellIndex) => (
-                            <td key={cellIndex} className="px-5 py-4">
-                              <span
-                                className={
-                                  cellIndex === 7
-                                    ? `px-2 py-1 rounded-full ${cell === "Completed" ? "bg-emerald-100 text-emerald-700" : "bg-blue-100 text-blue-700"}`
-                                    : cellIndex === 0
-                                      ? "font-semibold"
-                                      : ""
-                                }
-                              >
-                                {cell}
-                              </span>
-                            </td>
-                          ))}
+                          <td className="px-5 py-4 font-semibold">
+                            {row.booking_code}
+                          </td>
+                          <td className="px-5 py-4">{row.passenger_name}</td>
+                          <td className="px-5 py-4">
+                            {row.bus?.name} / {row.route?.from} →{" "}
+                            {row.route?.to}
+                          </td>
+                          <td className="px-5 py-4">{row.journey_date}</td>
+                          <td className="px-5 py-4">
+                            {(row.seats || []).join(", ")}
+                          </td>
+                          <td className="px-5 py-4">৳{row.total_amount}</td>
+                          <td className="px-5 py-4">
+                            <span className="px-2 py-1 rounded-full bg-blue-100 text-blue-700">
+                              {row.status}
+                            </span>
+                          </td>
                         </>
                       )}
                     </tr>
@@ -287,6 +352,116 @@ const AdminManagement = () => {
             </div>
           </section>
         </div>
+        {editing && (
+          <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+            <form
+              onSubmit={submitForm}
+              className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl space-y-4"
+            >
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold">
+                  {editing.id ? "Edit" : "Add"}{" "}
+                  {editing.type === "bus" ? "Bus" : "Route"}
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setEditing(null)}
+                  className="text-slate-500 text-xl"
+                >
+                  ×
+                </button>
+              </div>
+              {editing.type === "bus" ? (
+                <>
+                  {[
+                    ["name", "Bus name", "text"],
+                    ["number", "Bus number", "text"],
+                    ["type", "Type", "text"],
+                    ["total_seats", "Total seats", "number"],
+                    ["route_from", "Route from", "text"],
+                    ["route_to", "Route to", "text"],
+                    ["travel_date", "Travel date (optional)", "date"],
+                    ["departure", "Departure", "time"],
+                    ["arrival", "Arrival", "time"],
+                    ["fare", "Fare", "number"],
+                    ["travel_date", "Travel date (optional)", "date"],
+                  ].map(([name, label, type]) => (
+                    <label key={name} className="block text-sm font-semibold">
+                      {label}
+                      <input
+                        required
+                        type={type}
+                        value={form[name]}
+                        onChange={(event) =>
+                          setForm({
+                            ...form,
+                            [name]:
+                              type === "number"
+                                ? Number(event.target.value)
+                                : event.target.value,
+                          })
+                        }
+                        className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 font-normal"
+                      />
+                    </label>
+                  ))}
+                </>
+              ) : (
+                <>
+                  <label className="block text-sm font-semibold">
+                    Bus
+                    <select
+                      required
+                      value={form.bus_id}
+                      onChange={(event) =>
+                        setForm({ ...form, bus_id: Number(event.target.value) })
+                      }
+                      className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 font-normal"
+                    >
+                      {(busResponse?.data || []).map((bus) => (
+                        <option key={bus.id} value={bus.id}>
+                          {bus.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {[
+                    ["from", "From", "text"],
+                    ["to", "To", "text"],
+                    ["departure", "Departure", "time"],
+                    ["arrival", "Arrival", "time"],
+                    ["fare", "Fare", "number"],
+                  ].map(([name, label, type]) => (
+                    <label key={name} className="block text-sm font-semibold">
+                      {label}
+                      <input
+                        required
+                        type={type}
+                        value={form[name]}
+                        onChange={(event) =>
+                          setForm({
+                            ...form,
+                            [name]:
+                              type === "number"
+                                ? Number(event.target.value)
+                                : event.target.value,
+                          })
+                        }
+                        className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 font-normal"
+                      />
+                    </label>
+                  ))}
+                </>
+              )}
+              <button
+                type="submit"
+                className="w-full rounded-lg bg-purple-600 py-3 font-semibold text-white"
+              >
+                Save changes
+              </button>
+            </form>
+          </div>
+        )}
       </main>
     </div>
   );

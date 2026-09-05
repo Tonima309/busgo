@@ -50,6 +50,7 @@ export const ROLE_NAVIGATION = {
     "manageBookings",
   ],
   user: ["dashboard"],
+  customer: ["dashboard"],
 };
 
 export const getNavigationItemsByRole = (userRole) => {

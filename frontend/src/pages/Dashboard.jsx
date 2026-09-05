@@ -12,72 +12,52 @@ import {
 import { useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { logoutSuccess } from "../features/auth/authSlice";
+import { useGetDashboardQuery } from "../features/transport/transportSlice";
 import useAuth from "../hooks/useAuth";
-
-const stats = [
-  ["Total Buses", "28", "+3 this month", BusFront, "text-blue-600 bg-blue-50"],
-  [
-    "Total Bookings",
-    "1,482",
-    "+12% this week",
-    Ticket,
-    "text-purple-600 bg-purple-50",
-  ],
-  [
-    "Total Users",
-    "3,210",
-    "+8% this week",
-    Users,
-    "text-emerald-600 bg-emerald-50",
-  ],
-  [
-    "Total Revenue",
-    "৳8,42,600",
-    "+৳5,400 this week",
-    CircleDollarSign,
-    "text-amber-600 bg-amber-50",
-  ],
-];
-
-const recentBookings = [
-  [
-    "BG-2024-001",
-    "Passenger 1",
-    "Dhaka → Chittagong",
-    "2026-08-15",
-    "৳1300",
-    "Completed",
-  ],
-  [
-    "BG-2024-002",
-    "Passenger 2",
-    "Dhaka → Cox's Bazar",
-    "2026-09-05",
-    "৳900",
-    "Upcoming",
-  ],
-  [
-    "BG-2024-003",
-    "Passenger 3",
-    "Dhaka → Sylhet",
-    "2026-07-20",
-    "৳840",
-    "Completed",
-  ],
-  [
-    "BG-2024-004",
-    "Passenger 4",
-    "Chittagong → Cox's Bazar",
-    "2026-09-12",
-    "৳380",
-    "Upcoming",
-  ],
-];
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const { user } = useAuth();
+  const { data: dashboardResponse, isLoading } = useGetDashboardQuery();
+  const dashboard = dashboardResponse?.data;
+  const stats = dashboard
+    ? [
+        [
+          "Total Buses",
+          dashboard.stats.buses,
+          "Live records",
+          BusFront,
+          "text-blue-600 bg-blue-50",
+        ],
+        [
+          "Total Bookings",
+          dashboard.stats.bookings,
+          "Live records",
+          Ticket,
+          "text-purple-600 bg-purple-50",
+        ],
+        [
+          "Total Passengers",
+          dashboard.stats.passengers,
+          "Registered accounts",
+          Users,
+          "text-emerald-600 bg-emerald-50",
+        ],
+        [
+          "Total Revenue",
+          `৳${dashboard.stats.revenue.toLocaleString()}`,
+          "All confirmed bookings",
+          CircleDollarSign,
+          "text-amber-600 bg-amber-50",
+        ],
+      ]
+    : [];
+  const recentBookings = dashboard?.recent_bookings || [];
+  const maxRevenue = Math.max(
+    ...(dashboard?.monthly_revenue || []).map((item) => item.revenue),
+    1,
+  );
 
   const handleLogout = () => {
     dispatch(logoutSuccess());
@@ -158,6 +138,11 @@ const Dashboard = () => {
           <p className="text-sm text-slate-500 mt-1 mb-6">
             Welcome back, Admin. Here's what's happening today.
           </p>
+          {isLoading && (
+            <p className="mb-5 text-sm text-slate-500">
+              Loading dashboard data...
+            </p>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-5">
             {stats.map(([label, value, change, Icon, colors]) => (
               <div
@@ -182,33 +167,53 @@ const Dashboard = () => {
                 <span className="text-xs text-slate-400">in thousands</span>
               </div>
               <div className="h-40 flex items-end gap-4 border-b border-slate-200 px-3">
-                {[3, 5, 4, 7, 7, 6, 8, 9].map((height, index) => (
+                {(dashboard?.monthly_revenue || []).map((item) => (
                   <div
-                    key={index}
+                    key={item.month}
                     className="flex-1 bg-purple-500 rounded-t-md"
-                    style={{ height: `${height * 10}%` }}
+                    title={`৳${item.revenue.toLocaleString()}`}
+                    style={{
+                      height: `${Math.max((item.revenue / maxRevenue) * 100, item.revenue ? 4 : 1)}%`,
+                    }}
                   />
                 ))}
               </div>
-              <div className="grid grid-cols-8 px-3 pt-2 text-[10px] text-slate-400 text-center">
-                {["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug"].map(
-                  (month) => (
-                    <span key={month}>{month}</span>
-                  ),
-                )}
+              <div className="grid grid-cols-12 px-3 pt-2 text-[10px] text-slate-400 text-center">
+                {[
+                  "Jan",
+                  "Feb",
+                  "Mar",
+                  "Apr",
+                  "May",
+                  "Jun",
+                  "Jul",
+                  "Aug",
+                  "Sep",
+                  "Oct",
+                  "Nov",
+                  "Dec",
+                ].map((month) => (
+                  <span key={month}>{month}</span>
+                ))}
               </div>
             </section>
             <section className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
               <h2 className="font-bold mb-4">Quick Actions</h2>
               <div className="space-y-2">
-                <button className="w-full text-left border border-slate-200 rounded-lg px-3 py-2 text-sm">
+                <button
+                  onClick={() => navigate("/admin/buses")}
+                  className="w-full text-left border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                >
                   + Add New Bus
                 </button>
-                <button className="w-full text-left border border-slate-200 rounded-lg px-3 py-2 text-sm">
+                <button
+                  onClick={() => navigate("/admin/routes")}
+                  className="w-full text-left border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                >
                   + Add New Route
                 </button>
                 <button
-                  onClick={() => navigate("/bookings")}
+                  onClick={() => navigate("/admin/bookings")}
                   className="w-full text-left border border-slate-200 rounded-lg px-3 py-2 text-sm"
                 >
                   ✓ View All Bookings
@@ -217,13 +222,16 @@ const Dashboard = () => {
               <div className="border-t mt-5 pt-4 text-xs text-slate-500 space-y-2">
                 <p className="uppercase text-[10px]">Today's Snapshot</p>
                 <p className="flex justify-between">
-                  New Bookings <b>24</b>
+                  New Bookings <b>{dashboard?.stats.today_bookings ?? 0}</b>
                 </p>
                 <p className="flex justify-between">
-                  Revenue Today <b>৳18,200</b>
+                  Revenue Today{" "}
+                  <b>
+                    ৳{(dashboard?.stats.today_revenue ?? 0).toLocaleString()}
+                  </b>
                 </p>
                 <p className="flex justify-between">
-                  Active Buses <b>22</b>
+                  Active Buses <b>{dashboard?.stats.buses ?? 0}</b>
                 </p>
               </div>
             </section>
@@ -232,7 +240,7 @@ const Dashboard = () => {
             <div className="px-5 py-4 flex justify-between">
               <h2 className="font-bold">Recent Bookings</h2>
               <button
-                onClick={() => navigate("/bookings")}
+                onClick={() => navigate("/admin/bookings")}
                 className="text-xs text-purple-600 font-semibold"
               >
                 View all →
@@ -258,17 +266,23 @@ const Dashboard = () => {
                 </thead>
                 <tbody>
                   {recentBookings.map((booking) => (
-                    <tr key={booking[0]} className="border-t border-slate-100">
-                      <td className="px-5 py-3 font-semibold">{booking[0]}</td>
-                      <td className="px-5 py-3">{booking[1]}</td>
-                      <td className="px-5 py-3">{booking[2]}</td>
-                      <td className="px-5 py-3">{booking[3]}</td>
-                      <td className="px-5 py-3 font-semibold">{booking[4]}</td>
+                    <tr key={booking.id} className="border-t border-slate-100">
+                      <td className="px-5 py-3 font-semibold">
+                        {booking.booking_code}
+                      </td>
+                      <td className="px-5 py-3">{booking.passenger_name}</td>
+                      <td className="px-5 py-3">
+                        {booking.route?.from} → {booking.route?.to}
+                      </td>
+                      <td className="px-5 py-3">{booking.journey_date}</td>
+                      <td className="px-5 py-3 font-semibold">
+                        ৳{booking.total_amount}
+                      </td>
                       <td className="px-5 py-3">
                         <span
-                          className={`px-2 py-1 rounded-full ${booking[5] === "Completed" ? "bg-emerald-100 text-emerald-700" : "bg-blue-100 text-blue-700"}`}
+                          className={`px-2 py-1 rounded-full ${booking.status === "completed" ? "bg-emerald-100 text-emerald-700" : "bg-blue-100 text-blue-700"}`}
                         >
-                          {booking[5]}
+                          {booking.status}
                         </span>
                       </td>
                     </tr>
