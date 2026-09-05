@@ -143,17 +143,40 @@ const SearchBuses = () => {
   const buses = allBuses.filter(
     (bus) => bus.from === fromLocation && bus.to === toLocation,
   );
-  const displayedBuses = buses.length
-    ? buses
-    : isError
-      ? fallbackBuses.map((bus) => ({
-          ...bus,
-          totalSeats: bus.seats,
-          availableSeats: bus.seats,
-          bookedSeats: 0,
-          bookedSeatIds: [],
-        }))
-      : buses;
+  const matchesFilters = (bus) => {
+    const departureHour = Number(bus.departure.split(":")[0]);
+    const matchesDeparture =
+      departureFilter === "all" ||
+      (departureFilter === "morning" &&
+        departureHour >= 5 &&
+        departureHour < 12) ||
+      (departureFilter === "afternoon" &&
+        departureHour >= 12 &&
+        departureHour < 18) ||
+      (departureFilter === "night" &&
+        (departureHour >= 18 || departureHour < 5));
+    const normalizedType = bus.type.toLowerCase();
+    const matchesType =
+      busTypeFilter === "all" ||
+      (busTypeFilter === "ac" && normalizedType === "ac") ||
+      (busTypeFilter === "non-ac" && normalizedType === "non-ac") ||
+      (busTypeFilter === "sleeper" && normalizedType.includes("sleeper")) ||
+      (busTypeFilter === "deluxe" && normalizedType.includes("deluxe"));
+
+    const numericPrice = Number(String(bus.price).replace(/[^0-9.]/g, ""));
+    return matchesDeparture && matchesType && numericPrice <= Number(maxPrice);
+  };
+  const filteredBuses = buses.filter(matchesFilters);
+  const fallbackResults = fallbackBuses
+    .map((bus) => ({
+      ...bus,
+      totalSeats: bus.seats,
+      availableSeats: bus.seats,
+      bookedSeats: 0,
+      bookedSeatIds: [],
+    }))
+    .filter(matchesFilters);
+  const displayedBuses = isError ? fallbackResults : filteredBuses;
   const availableFromLocations = [...new Set(allBuses.map((bus) => bus.from))];
   const availableToLocations = [
     ...new Set(
@@ -700,6 +723,10 @@ const SearchBuses = () => {
             <div className="space-y-4">
               {isError ? (
                 <p className="text-sm text-red-600">Unable to load buses.</p>
+              ) : displayedBuses.length === 0 ? (
+                <p className="rounded-lg border border-slate-200 bg-white px-5 py-8 text-center text-sm text-slate-500">
+                  No buses match the selected filters.
+                </p>
               ) : (
                 displayedBuses.map((bus) => (
                   <div
